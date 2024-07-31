@@ -26,8 +26,8 @@ get_channel_id () {
     fi
 
     # Find and strip for channel ID
-    id=$(grep -Po '"channelId":".+?"' <<< "$response")
-    id=${id#*'"channelId":"'}
+    id=$(grep -Po 'rel="canonical" href=".+?"' <<< "$response")
+    id=${id#*'href="'}
     id=${id%'"'}
 }
 

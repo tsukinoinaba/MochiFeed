@@ -1,0 +1,127 @@
+#!/bin/bash
+
+# TODO migrate data storage to SQLite
+readonly rss_file='subscriptions.txt'
+readonly channel_file='channels.txt'
+
+# Find canonical ID for a channel
+get_canonical_id () {
+    if [[ "$1" != @* ]]; then
+        echo "Invalid channel tag: ${1}. Channel tag should start with @."
+        return 1
+    fi
+
+    # Get response from Youtube
+    local url="https://www.youtube.com/${1}/videos"
+    local response
+    response=$(curl -s -i "$url")
+
+    # Check response status
+    local status
+    status=$(grep 'HTTP/2' <<< "$response")
+    status=${status#*'HTTP/2 '}
+    status=${status%' '*}
+    if [ ! "$status" = 200 ]; then
+        echo "Could not find channel for ${1}."
+        return 2
+    fi
+
+    # Find and strip for canonical ID
+    id=$(grep -Po 'rel="canonical" href=".+?"' <<< "$response")
+    id=${id#*'href="https://www.youtube.com/channel/'}
+    id=${id%'"'}
+}
+
+subscribe () {
+    for tag in "$@"; do
+        if ! get_canonical_id "$tag"; then
+            continue
+        fi
+
+        # Check if channel has already been added, and exit if so
+        local check
+        check=$(grep "$id" "$rss_file")
+        if [ "$check" != "" ]; then
+            echo "Already subscribed to ${tag}."
+            continue
+        fi
+
+        # Append RSS feed link to RSS feed file
+        echo "https://www.youtube.com/feeds/videos.xml?channel_id=${id}" >> "$rss_file"
+
+	# Append channel tag to channel file
+        echo "$tag" >> "$channel_file"
+        echo "Successfully subscribed to ${tag}!"
+    done
+}
+
+# TODO switch to yay menu
+unsubscribe () {
+    for tag in "$@"; do
+        # if ! get_channel_id "$tag"; then
+        #     continue
+        # fi
+
+        # Search for RSS feed in RSS file and get line number if found
+        local line
+        # line=$(grep -Fn "$id" "$rss_file")
+        line=$(grep -Fn "$tag" "$channel_file")
+        if [ "$line" = "" ]; then
+            echo "Not subscribed to ${tag}."
+            continue
+        fi
+        # line="${line%':https://www.youtube.com/feeds/videos.xml?channel_id='*}"
+        echo $line # TODO debug
+        line="${line%':@'*}"
+
+        # Remove RSS feed from RSS file
+        local updated_list
+        updated_list=$(sed "${line}d" "$rss_file")
+        echo "$updated_list" > "$rss_file"
+
+      	#Remove channel tag from channel file
+        updated_list=$(sed "${line}d" "$channel_file")
+        echo "$updated_list" > "$channel_file"
+
+        echo "Successfully unsubscribed from ${tag}!"
+    done
+}
+
+retry_downloads () {
+    echo 'To be implemented'
+}
+
+list_channels () {
+    echo 'To be implemented'
+}
+
+list_videos () {
+    echo 'To be implemented'
+}
+
+print_usage () {
+    echo 'To be implemented'
+}
+
+error () {
+    echo 'To be implemented'
+}
+
+case $1 in
+    -f) ./sync.sh ;;
+    --fetch) ./sync.sh ;;
+    -s) subscribe "${@:2}" ;;
+    --sub) subscribe "${@:2}" ;;
+    -u) unsubscribe "${@:2}" ;;
+    --unsub) unsubscribe "${@:2}" ;;
+    -r) retry_downloads ;;
+    --retry) retry_downloads ;;
+    -c) list_channels ;;
+    --channels) list_channels ;;
+    -l) list_videos ;;
+    --latest) list_videos ;;
+    -h) print_usage ;;
+    --help) print_usage ;;
+    *) error ;;
+esac
+

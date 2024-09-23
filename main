@@ -3,6 +3,7 @@
 # TODO migrate data storage to SQLite
 readonly rss_file='subscriptions.txt'
 readonly channel_file='channels.txt'
+readonly memory_file='latest_vids.txt'
 
 # Find canonical ID for a channel
 get_canonical_id () {
@@ -70,6 +71,10 @@ unsubscribe () {
       	#Remove channel tag from channel file
         updated_list=$(sed "${line}d" "$channel_file")
         echo "$updated_list" > "$channel_file"
+
+        # Remove latest video from memory file
+        updated_list=$(sed "${line}d" "$memory_file")
+        echo "$updated_list" > "$memory_file"
 
         echo "Successfully unsubscribed from ${tag}!"
     done

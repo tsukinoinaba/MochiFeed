@@ -53,6 +53,7 @@ You will be prompted to choose which videos you want to download. Video download
 ## Planned Features
 
 ### High Priority
+* Retain the list of videos from the previous sync, so that the program does not "forget" everything if the newest video was deleted
 * Ignore videos with a length of NA, as they have been deleted
 * Ignore premieres and scheduled live streams
 * A function to print out the usage guide

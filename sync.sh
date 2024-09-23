@@ -52,29 +52,34 @@ sync () {
     prompt_user
 }
 
+# for i in "${!ids[@]}"; do
+#         yt-dlp --print duration_string "https://www.youtube.com/watch?v=${ids[i]}" > "$i" &
+#
+#         if [ "$((i % threads))" -eq 0 ]; then
+#             wait
+#         fi
+#     done
+#     wait
+
 get_feeds () {
-    local iter=$(((total + threads - 1) / threads))
-    local index=-1
-    local line=0
-
     # TODO scrape channel page instead of RSS feed for video duration
-    for i in $(seq 1 $iter); do
-        for _ in $(seq 1 $threads); do
-            index=$((index + 1))
-            line=$((line + 1))
-            url=$(sed "${line}q;d" "$rss_file")
-            if [ "$url" = "" ]; then
-                break
-            fi
-            # TODO use single line progress counter
-            url=$(sed "${line}q;d" "$rss_file")
+    for line in $(seq 1 $total); do
+        url=$(sed "${line}q;d" "$rss_file")
+        if [ "$url" = "" ]; then
+            break
+        fi
+        # TODO use single line progress counter
+        url=$(sed "${line}q;d" "$rss_file")
 
-            # Save output to a file to enable concurrency
-            # TODO test using multi line function with &
-            curl --silent "$url" > "$line" &
-        done
-        wait
+        # Save output to a file to enable concurrency
+        # TODO test using multi line function with &
+        curl --silent "$url" > "$line" &
+
+        if [ "$((line % threads))" -eq 0 ]; then
+            wait
+        fi
     done
+    wait
 }
 
 get_new_videos () {

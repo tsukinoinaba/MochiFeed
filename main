@@ -58,20 +58,13 @@ subscribe () {
 # TODO switch to yay menu
 unsubscribe () {
     for tag in "$@"; do
-        # if ! get_channel_id "$tag"; then
-        #     continue
-        # fi
-
         # Search for RSS feed in RSS file and get line number if found
         local line
-        # line=$(grep -Fn "$id" "$rss_file")
         line=$(grep -Fn "$tag" "$channel_file")
         if [ "$line" = "" ]; then
             echo "Not subscribed to ${tag}."
             continue
         fi
-        # line="${line%':https://www.youtube.com/feeds/videos.xml?channel_id='*}"
-        echo $line # TODO debug
         line="${line%':@'*}"
 
         # Remove RSS feed from RSS file

@@ -10,7 +10,6 @@ readonly total=$(wc --lines < "$rss_file")
 
 declare -a ids
 declare -a titles
-declare -a durations
 
 sync () {
     # Delete temp file if it exists
@@ -52,15 +51,6 @@ sync () {
     prompt_user
 }
 
-# for i in "${!ids[@]}"; do
-#         yt-dlp --print duration_string "https://www.youtube.com/watch?v=${ids[i]}" > "$i" &
-#
-#         if [ "$((i % threads))" -eq 0 ]; then
-#             wait
-#         fi
-#     done
-#     wait
-
 get_feeds () {
     # TODO scrape channel page instead of RSS feed for video duration
     for line in $(seq 1 $total); do
@@ -72,7 +62,6 @@ get_feeds () {
         url=$(sed "${line}q;d" "$rss_file")
 
         # Save output to a file to enable concurrency
-        # TODO test using multi line function with &
         curl --silent "$url" > "$line" &
 
         if [ "$((line % threads))" -eq 0 ]; then
@@ -88,9 +77,9 @@ get_new_videos () {
 
     # Query for the RSS feed and parse response for the video URLs
     for file in $(seq 1 "$total"); do
-        #regex=$(awk '/<yt:videoId>/,/<[/]title>/' <<< "${xml}")
         local xml=$(cat "$file")
         rm "$file"
+
         local first=true
         local count=0
         local last_seen=""
@@ -102,7 +91,7 @@ get_new_videos () {
         # Determine which video is new and grab the ID of new videos
         while IFS= read id; do
             # Strip grep output for the exact video ID
-            id=${id#*"<yt:videoId>"}
+            local id=${id#*"<yt:videoId>"}
             id=${id%"</yt:videoId>"}
 
             # Check if the newest video matches the one that is recorded
@@ -141,7 +130,7 @@ get_new_videos () {
         local channel=""
         while IFS= read -r title; do
             # Strip grep output for the exact title
-            title=${title#*"<title>"}
+            local title=${title#*"<title>"}
             title=${title%"</title>"}
 
             # Skip the first one as it is the channel name
@@ -175,7 +164,7 @@ get_video_durations () {
     wait
 
     for i in "${!ids[@]}"; do
-        durations+=($(cat "$i"))
+        titles["$i"]="$(cat "$i") ${titles[$i]}"
         rm "$i"
     done
 }
@@ -184,7 +173,7 @@ get_video_durations () {
 list_videos () {
     # TODO prettify
     for i in "${!ids[@]}"; do
-        echo "$i ${durations[$i]} ${titles[$i]}"
+        echo "$i ${titles[$i]}"
     done
 }
 
@@ -197,7 +186,7 @@ prompt_user () {
     #read -a queue -p "Select videos to download: (e.g. \"1 2 3\", \"1-3\" or \"^4\")"
 
     # Exit if no videos selected for download
-    if [ ${#input[@]} = 0 ]; then
+    if [ "${#input[@]}" -eq 0 ]; then
         echo 'No videos selected. Exiting.'
         exit 0
     fi

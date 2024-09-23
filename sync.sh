@@ -4,10 +4,13 @@ readonly rss_file='subscriptions.txt'
 readonly memory_file='latest_vids.txt'
 readonly working_file="$memory_file.new"
 readonly last_sync_file='last_sync.txt'
+
+readonly threads=10
 readonly total=$(wc --lines < "$rss_file")
 
 declare -a ids
 declare -a titles
+declare -a durations
 
 sync () {
     # Delete temp file if it exists
@@ -44,12 +47,12 @@ sync () {
     echo "${ids[@]}" > "$last_sync_file"
     echo "${titles[@]}" >> "$last_sync_file"
 
-    # TODO move below code into its own function/file
+    get_video_durations
+    list_videos
     prompt_user
 }
 
 get_feeds () {
-    local threads=10
     local iter=$(((total + threads - 1) / threads))
     local index=-1
     local line=0
@@ -155,14 +158,32 @@ get_new_videos () {
     done
 }
 
-prompt_user () {
-    # Print each video with index
+# Fetch video duration concurrently and store them in $durations array
+get_video_durations () {
+    for i in "${!ids[@]}"; do
+        yt-dlp --print duration_string "https://www.youtube.com/watch?v=${ids[i]}" > "$i" &
+
+        if [ "$((i % threads))" -eq 0 ]; then
+            wait
+        fi
+    done
+    wait
+
+    for i in "${!ids[@]}"; do
+        durations+=($(cat "$i"))
+        rm "$i"
+    done
+}
+
+# Print each video with index
+list_videos () {
     # TODO prettify
     for i in "${!ids[@]}"; do
-        duration="$(yt-dlp --print duration_string "https://www.youtube.com/watch?v=${ids[i]}")"
-        echo "$i $duration ${titles[$i]}"
+        echo "$i ${durations[$i]} ${titles[$i]}"
     done
+}
 
+prompt_user () {
     # Ask for user input to select the videos to download
     # TODO loop through 2 menus, first one for options:
     # download video, download audio, watch now, bookmark, custom, exit

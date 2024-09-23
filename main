@@ -13,12 +13,10 @@ get_canonical_id () {
 
     # Get response from Youtube
     local url="https://www.youtube.com/${1}/videos"
-    local response
-    response=$(curl -s -i "$url")
+    local response=$(curl -s -i "$url")
 
     # Check response status
-    local status
-    status=$(grep 'HTTP/2' <<< "$response")
+    local status=$(grep 'HTTP/2' <<< "$response")
     status=${status#*'HTTP/2 '}
     status=${status%' '*}
     if [ ! "$status" = 200 ]; then
@@ -39,8 +37,7 @@ subscribe () {
         fi
 
         # Check if channel has already been added, and exit if so
-        local check
-        check=$(grep "$id" "$rss_file")
+        local check=$(grep "$id" "$rss_file")
         if [ "$check" != "" ]; then
             echo "Already subscribed to ${tag}."
             continue
@@ -59,8 +56,7 @@ subscribe () {
 unsubscribe () {
     for tag in "$@"; do
         # Search for RSS feed in RSS file and get line number if found
-        local line
-        line=$(grep -Fn "$tag" "$channel_file")
+        local line=$(grep -Fn "$tag" "$channel_file")
         if [ "$line" = "" ]; then
             echo "Not subscribed to ${tag}."
             continue
@@ -68,8 +64,7 @@ unsubscribe () {
         line="${line%':@'*}"
 
         # Remove RSS feed from RSS file
-        local updated_list
-        updated_list=$(sed "${line}d" "$rss_file")
+        local updated_list=$(sed "${line}d" "$rss_file")
         echo "$updated_list" > "$rss_file"
 
       	#Remove channel tag from channel file

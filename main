@@ -1,9 +1,6 @@
 #!/bin/bash
 
-# TODO migrate data storage to SQLite
-readonly rss_file='subscriptions.txt'
-readonly channel_file='channels.txt'
-readonly memory_file='latest_vids.txt'
+readonly subscription_file='channels.csv'
 
 # Find canonical ID for a channel
 get_canonical_id () {
@@ -38,17 +35,14 @@ subscribe () {
         fi
 
         # Check if channel has already been added, and exit if so
-        local check=$(grep "$id" "$rss_file")
+        local check=$(grep "$id" "$subscription_file")
         if [ "$check" != "" ]; then
             echo "Already subscribed to ${tag}."
             continue
         fi
 
-        # Append RSS feed link to RSS feed file
-        echo "https://www.youtube.com/feeds/videos.xml?channel_id=${id}" >> "$rss_file"
-
-	# Append channel tag to channel file
-        echo "$tag" >> "$channel_file"
+        # Append channel tag and RSS feed link to subscription file
+        echo "${tag},https://www.youtube.com/feeds/videos.xml?channel_id=${id}," >> "$subscription_file"
         echo "Successfully subscribed to ${tag}!"
     done
 }
@@ -56,26 +50,17 @@ subscribe () {
 # TODO switch to yay menu
 unsubscribe () {
     for tag in "$@"; do
-        # Search for RSS feed in RSS file and get line number if found
-        local line=$(grep -Fn "$tag" "$channel_file")
+        # Search for channel tag in subscription file and get line number if found
+        local line=$(grep -Fn "$tag" "$subscription_file")
         if [ "$line" = "" ]; then
             echo "Not subscribed to ${tag}."
             continue
         fi
         line="${line%':@'*}"
 
-        # Remove RSS feed from RSS file
-        local updated_list=$(sed "${line}d" "$rss_file")
-        echo "$updated_list" > "$rss_file"
-
-      	#Remove channel tag from channel file
-        updated_list=$(sed "${line}d" "$channel_file")
-        echo "$updated_list" > "$channel_file"
-
-        # Remove latest video from memory file
-        updated_list=$(sed "${line}d" "$memory_file")
-        echo "$updated_list" > "$memory_file"
-
+        # Remove the line containing the channel's data from the subscription file
+        local updated_list=$(sed "${line}d" "$subscription_file")
+        echo "$updated_list" > "$subscription_file"
         echo "Successfully unsubscribed from ${tag}!"
     done
 }

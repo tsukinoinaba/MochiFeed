@@ -1,13 +1,15 @@
 #!/bin/bash
 
-readonly rss_file='subscriptions.txt'
-readonly memory_file='latest_vids.txt'
-readonly working_file="$memory_file.new"
+readonly subscription_file='channels.csv'
+readonly working_file="$subscription_file.new"
 readonly last_sync_file='last_sync.txt'
 
 readonly threads=10
-readonly total=$(wc --lines < "$rss_file")
+readonly total=$(wc --lines < "$subscription_file")
 
+declare -a channels
+declare -a rss
+declare -a latest_vids
 declare -a ids
 declare -a titles
 
@@ -16,21 +18,20 @@ sync () {
     if test -f "$working_file"; then
         rm "$working_file"
     fi
+    touch "$working_file"
 
-    # Check if memory file exists and make a copy for editing
-    if test -f "$memory_file"; then
-        cp "$memory_file" "$working_file"
-    else
-        touch "$working_file"
-    fi
+    # Align arrays with seq indexing
+    channels+=('')
+    rss+=('')
+    latest_vids+=('')
+    
+    parse_csv
 
-    # Fetch RSS feeds in parallel
     echo 'Syncing feed...'
     get_feeds
 
-    # Use 2 arrays, one for video ID and one for video title
     echo 'Sync done. Checking which videos are new.'
-    get_new_videos
+    parse_new_videos
 
     # Exit if no new videos found
     if [ ${#ids[@]} = 0 ]; then
@@ -39,8 +40,7 @@ sync () {
         exit 0
     fi
 
-    # Overwrite old latest_vids.txt with new one
-    mv "$working_file" "$memory_file"
+    update_subscriptions
 
     # Save the current video list
     echo "${ids[@]}" > "$last_sync_file"
@@ -51,62 +51,65 @@ sync () {
     prompt_user
 }
 
+# Parse CSV file into arrays for easier processing
+parse_csv () {
+    for i in $(seq "$total"); do
+        line=$(sed "${i}q;d" "$subscription_file")
+        IFS=',' read -ra temp <<< "$line"
+        channels+=("${temp[0]}")
+        rss+=("${temp[1]}")
+        latest_vids+=("${temp[2]}")
+    done
+}
+
+# Fetch RSS feeds in parallel
 get_feeds () {
     # TODO scrape channel page instead of RSS feed for video duration
-    for line in $(seq 1 $total); do
-        url=$(sed "${line}q;d" "$rss_file")
+    for i in $(seq "$total"); do
+        url="${rss[$i]}"
+
         if [ "$url" = "" ]; then
             break
         fi
+
         # TODO use single line progress counter
-        url=$(sed "${line}q;d" "$rss_file")
-
         # Save output to a file to enable concurrency
-        curl --silent "$url" > "$line" &
+        curl --silent "$url" > "$i" &
 
-        if [ "$((line % threads))" -eq 0 ]; then
+        if [ "$((i % threads))" -eq 0 ]; then
             wait
         fi
     done
     wait
 }
 
-get_new_videos () {
-    local mem_total=$(wc --lines < "$working_file")
-    local ctr=0
-
-    # Query for the RSS feed and parse response for the video URLs
-    for file in $(seq 1 "$total"); do
-        local xml=$(cat "$file")
-        rm "$file"
+# Parse RSS feeds for the video URLs and titles
+parse_new_videos () {
+    for i in $(seq "$total"); do
+        local xml=$(cat "$i")
+        rm "$i"
 
         local first=true
         local count=0
         local last_seen=""
-        ctr=$((ctr + 1))
 
         # TODO use channel name, printf
-        #echo "Checking $ctr"
+        #echo "Checking $i"
 
         # Determine which video is new and grab the ID of new videos
         while IFS= read id; do
             # Strip grep output for the exact video ID
-            local id=${id#*"<yt:videoId>"}
-            id=${id%"</yt:videoId>"}
+            id=${id#*'<yt:videoId>'}
+            id=${id%'</yt:videoId>'}
 
             # Check if the newest video matches the one that is recorded
             if [ "$first" = true ]; then
                 first=false
 
-                # If channel has never been seen before, add to memory
-                if [ "$ctr" -gt "$mem_total" ]; then
-                    echo "$id" >> "$working_file"
-                else
-                    # If newest video has not been seen, update memory
-                    last_seen=$(sed "${ctr}q;d" "$working_file")
-                    if [ "$id" != "$last_seen" ]; then
-                        sed -i "${ctr}s/.*/${id}/" "$working_file"
-                    fi
+                # If newest video has not been seen, update memory
+                last_seen="${latest_vids[$i]}"
+                if [ "$id" != "$last_seen" ]; then
+                    latest_vids["$i"]="$id"
                 fi
             fi
 
@@ -118,7 +121,7 @@ get_new_videos () {
             # Add new video to array
             ids+=("$id")
             count=$((count+1))
-        done < <(grep "<yt:videoId>" <<< "$xml")
+        done < <(grep '<yt:videoId>' <<< "$xml")
 
         # Go to next channel if there are no new videos
         if [ "$count" = 0 ]; then
@@ -130,8 +133,8 @@ get_new_videos () {
         local channel=""
         while IFS= read -r title; do
             # Strip grep output for the exact title
-            local title=${title#*"<title>"}
-            title=${title%"</title>"}
+            title=${title#*'<title>'}
+            title=${title%'</title>'}
 
             # Skip the first one as it is the channel name
             if [ "$first" = true ]; then
@@ -148,11 +151,19 @@ get_new_videos () {
             if [ "$count" = 0 ]; then
                 break
             fi
-        done < <(grep "<title>" <<< "$xml")
+        done < <(grep '<title>' <<< "$xml")
     done
 }
 
-# Fetch video duration concurrently and store them in $durations array
+# Update subscription file with newest videos seen
+update_subscriptions () {
+    for i in $(seq "$total"); do
+        echo "${channels[$i]},${rss[$i]},${latest_vids[$i]}" >> "$working_file"
+    done
+    mv "$working_file" "$subscription_file"
+}
+
+# Fetch video durations in parallel
 get_video_durations () {
     for i in "${!ids[@]}"; do
         yt-dlp --print duration_string "https://www.youtube.com/watch?v=${ids[i]}" > "$i" &

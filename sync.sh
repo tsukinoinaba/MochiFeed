@@ -1,6 +1,13 @@
 #!/bin/bash
 
 readonly subscription_file='channels.csv'
+
+# Check if subscription file exists
+if [ ! -f "$subscription_file" ]; then
+    echo 'No channels subscribed to. Exiting.'
+    exit 4
+fi
+
 readonly working_file="$subscription_file.new"
 readonly last_sync_file='last_sync.txt'
 

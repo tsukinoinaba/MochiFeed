@@ -29,6 +29,10 @@ get_canonical_id () {
 }
 
 subscribe () {
+    if [ ! -f "$subscription_file" ]; then
+        touch "$subscription_file"
+    fi
+
     for tag in "$@"; do
         if ! get_canonical_id "$tag"; then
             continue
@@ -49,6 +53,11 @@ subscribe () {
 
 # TODO switch to yay menu
 unsubscribe () {
+    if [ ! -f "$subscription_file" ]; then
+        echo "No channels subscribed to."
+        exit 4
+    fi
+
     for tag in "$@"; do
         # Search for channel tag in subscription file and get line number if found
         local line=$(grep -Fn "$tag" "$subscription_file")

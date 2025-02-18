@@ -10,6 +10,7 @@ fi
 
 readonly working_file="$subscription_file.new"
 readonly last_sync_file='last_sync.txt'
+readonly watch_later_file='watch_later.csv'
 
 readonly threads=10
 readonly total=$(wc --lines < "$subscription_file")
@@ -196,17 +197,31 @@ list_videos () {
 }
 
 prompt_user () {
+    # TODO options: download video, download audio, watch now, bookmark, custom, exit
+    while :; do
+        read -p 'What would you like to do? (1 - download videos, 2 - save to watch later, 3 - exit) ' input
+        if [ "$input" -eq 1 ]; then
+            download_videos
+        elif [ "$input" -eq 2 ]; then
+            save_watch_later
+        elif [ "$input" -eq 3 ]; then
+            echo 'Exiting.'
+            exit 0
+        else
+            echo 'Invalid input.'
+        fi
+    done
+}
+
+download_videos () {
     # Ask for user input to select the videos to download
-    # TODO loop through 2 menus, first one for options:
-    # download video, download audio, watch now, bookmark, custom, exit
-    # second one to select videos
     read -a input -p 'Select videos to download: (e.g. "1 2 3") '
     #read -a queue -p "Select videos to download: (e.g. \"1 2 3\", \"1-3\" or \"^4\")"
 
     # Exit if no videos selected for download
     if [ "${#input[@]}" -eq 0 ]; then
-        echo 'No videos selected. Exiting.'
-        exit 0
+        echo 'No videos selected.'
+        return
     fi
 
     queue_file="queue.txt"
@@ -234,11 +249,28 @@ prompt_user () {
     if ! grep --quiet '[^[:space:]]' "$queue_file"; then
         echo 'All selected videos downloaded successfully!'
         rm "$queue_file"
-        exit 0
     else
         echo 'Failed to download some videos. Please use "./main -r" to retry.'
         exit 3
     fi
+}
+
+save_watch_later () {
+    read -a input -p 'Select videos to save to watch later playlist: (e.g. "1 2 3") '
+    
+    if [ "${#input[@]}" -eq 0 ]; then
+        echo 'No videos selected.'
+        return
+    fi
+
+    #if [ ! -f "$watch_later_file" ]; then
+    #    touch "$watch_later_file"
+    #fi
+
+    for i in "${input[@]}"; do
+        echo "${ids[$i]}?${titles[$i]}" >> "$watch_later_file"
+    done
+    echo 'Videos saved to watch later.'
 }
 
 sync
